@@ -1,14 +1,15 @@
 'use client'
 
-import { useState, useCallback, useEffect } from 'react'
 import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Textarea } from "@/components/ui/textarea"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { CameraIcon, PlusIcon, CookingPotIcon, XIcon } from 'lucide-react'
-import { detectIngredientsFromImageApi } from '@/lib/service'
-import Image from 'next/image';
+import { Slider } from "@/components/ui/slider"
+import { detectIngredientsFromImageApi, generateRecipe as generateRecipeApi } from "@/lib/service"
+import { PlusIcon, XIcon } from 'lucide-react'
+import Image from 'next/image'
+import { useCallback, useEffect, useState } from 'react'
 
 // Mocking API calls
 const detectIngredientsFromImage = async (image: File, context: string): Promise<string[]> => {
@@ -38,12 +39,6 @@ const detectIngredientsFromImage = async (image: File, context: string): Promise
   return response;
 }
 
-const generateRecipe = async (ingredients: string[]): Promise<string> => {
-  // Simulating API call delay
-  await new Promise(resolve => setTimeout(resolve, 1000))
-  return `Recipe: ${ingredients.join(', ')} omelette\n\n1. Beat the eggs with milk\n2. Add cheese\n3. Cook in a pan\n4. Add sliced tomatoes on top`
-}
-
 export default function RecipeGenerator() {
   const [images, setImages] = useState<File[]>([])
   const [ingredients, setIngredients] = useState<string[]>([])
@@ -51,6 +46,22 @@ export default function RecipeGenerator() {
   const [recipe, setRecipe] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const [imageUrls, setImageUrls] = useState<string[]>([]);
+
+  const [cookingMethod, setCookingMethod] = useState('stove')
+  const [cookingTime, setCookingTime] = useState(30)
+  const [cookingMethods, setCookingMethods] = useState({
+    stove: false,
+    oven: false,
+    microwave: false
+  })
+
+  const [cookingDifficulty, setCookingDifficulty] = useState('medium')
+  const [cuisine, setCuisine] = useState('any')
+  const [dietaryRestrictions, setDietaryRestrictions] = useState<string[]>([])
+
+  const [messages, setMessages] = useState<Array<{ role: 'user' | 'assistant', content: string }>>([])
+  const [inputMessage, setInputMessage] = useState('')
+  const [highlightedInput, setHighlightedInput] = useState('')
 
   useEffect(() => {
     return () => {
@@ -81,9 +92,10 @@ export default function RecipeGenerator() {
   }, [handleImageUpload])
 
   const addIngredient = () => {
-    if (newIngredient && !ingredients.includes(newIngredient)) {
-      setIngredients([...ingredients, newIngredient])
-      setNewIngredient('')
+    if (newIngredient) {
+      const ingredientsToAdd = newIngredient.split(',').map(i => i.trim()).filter(i => i && !ingredients.includes(i));
+      setIngredients(prevIngredients => [...new Set([...prevIngredients, ...ingredientsToAdd])]);
+      setNewIngredient('');
     }
   }
 
@@ -91,11 +103,41 @@ export default function RecipeGenerator() {
     setIngredients(ingredients.filter(ingredient => ingredient !== ingredientToRemove))
   }
 
-  const handleGenerateRecipe = async () => {
+  const toggleCookingMethod = (method: 'stove' | 'oven' | 'microwave') => {
+    setCookingMethods(prev => ({ ...prev, [method]: !prev[method] }))
+  }
+
+  const handleSendMessage = async (e: React.FormEvent) => {
+    e.preventDefault()
+    
+    // Remove the check for empty input
+    setMessages(prevMessages => [...prevMessages, { role: 'user', content: inputMessage }])
+    setInputMessage('')
     setIsLoading(true)
-    const generatedRecipe = await generateRecipe(ingredients)
-    setRecipe(generatedRecipe)
-    setIsLoading(false)
+
+    try {
+      console.log(ingredients, messages, {
+        cookingMethods: Object.entries(cookingMethods).filter(([_, value]) => value).map(([key]) => key),
+        cookingTime,
+        cookingDifficulty,
+        cuisine,
+        dietaryRestrictions
+      })
+      const generatedRecipe = await generateRecipeApi(ingredients,  [...messages, { role: 'user', content: inputMessage }], {
+        cookingMethods: Object.entries(cookingMethods).filter(([_, value]) => value).map(([key]) => key),
+        cookingTime,
+        cookingDifficulty,
+        cuisine,
+        dietaryRestrictions
+      })
+      setRecipe(generatedRecipe)
+      setMessages(prevMessages => [...prevMessages, { role: 'assistant', content: generatedRecipe }])
+    } catch (error) {
+      console.error('Error generating recipe:', error)
+      setMessages(prevMessages => [...prevMessages, { role: 'assistant', content: 'Sorry, there was an error generating the recipe.' }])
+    } finally {
+      setIsLoading(false)
+    }
   }
 
   return (
@@ -159,35 +201,140 @@ export default function RecipeGenerator() {
           )}
 
           <div>
-            <Label htmlFor="new-ingredient">Add Ingredient</Label>
-            <div className="mt-1 flex space-x-2">
+            <Label htmlFor="new-ingredient">Add Ingredient(s)</Label>
+            <div className="flex mt-1">
               <Input
                 id="new-ingredient"
                 value={newIngredient}
                 onChange={(e) => setNewIngredient(e.target.value)}
-                placeholder="Enter an ingredient"
+                className="flex-grow"
+                placeholder="Enter ingredient(s), separated by commas"
               />
-              <Button onClick={addIngredient}>
+              <Button onClick={addIngredient} className="ml-2">
                 <PlusIcon className="h-4 w-4" />
+                Add
               </Button>
             </div>
           </div>
 
-          <Button onClick={handleGenerateRecipe} disabled={ingredients.length === 0 || isLoading} className="w-full">
-            <CookingPotIcon className="mr-2 h-4 w-4" />
-            Generate Recipe
-          </Button>
+          <div>
+            <Label>Cooking Methods</Label>
+            <div className="flex space-x-4 mt-1">
+              {['stove', 'oven', 'microwave'].map((method) => (
+                <div key={method} className="flex items-center">
+                  <Checkbox
+                    id={`cooking-method-${method}`}
+                    checked={cookingMethods[method as keyof typeof cookingMethods]}
+                    onCheckedChange={() => toggleCookingMethod(method as keyof typeof cookingMethods)}
+                  />
+                  <Label htmlFor={`cooking-method-${method}`} className="ml-2">
+                    {method.charAt(0).toUpperCase() + method.slice(1)}
+                  </Label>
+                </div>
+              ))}
+            </div>
+          </div>
 
-          {recipe && (
-            <div>
-              <Label>Generated Recipe</Label>
-              <Textarea value={recipe} readOnly className="mt-1 h-40" />
+          <div>
+            <Label htmlFor="cooking-time">Cooking Time (minutes)</Label>
+            <Slider
+              id="cooking-time"
+              min={5}
+              max={120}
+              step={5}
+              value={[cookingTime]}
+              onValueChange={(value) => setCookingTime(value[0])}
+            />
+            <span className="text-sm text-gray-500">{cookingTime} minutes</span>
+          </div>
+
+          {/* New options */}
+          <div>
+            <Label htmlFor="cooking-difficulty">Cooking Difficulty</Label>
+            <select
+              id="cooking-difficulty"
+              value={cookingDifficulty}
+              onChange={(e) => setCookingDifficulty(e.target.value)}
+              className="w-full mt-1 p-2 border rounded"
+            >
+              <option value="easy">Easy</option>
+              <option value="medium">Medium</option>
+              <option value="hard">Hard</option>
+            </select>
+          </div>
+
+          <div>
+            <Label htmlFor="cuisine">Cuisine</Label>
+            <select
+              id="cuisine"
+              value={cuisine}
+              onChange={(e) => setCuisine(e.target.value)}
+              className="w-full mt-1 p-2 border rounded"
+            >
+              <option value="any">Any</option>
+              <option value="italian">Italian</option>
+              <option value="mexican">Mexican</option>
+              <option value="chinese">Chinese</option>
+              <option value="indian">Indian</option>
+              {/* Add more cuisine options as needed */}
+            </select>
+          </div>
+
+          <div>
+            <Label>Dietary Restrictions</Label>
+            <div className="flex flex-wrap gap-2 mt-1">
+              {['vegetarian', 'vegan', 'gluten-free', 'dairy-free', 'nut-free'].map((restriction) => (
+                <div key={restriction} className="flex items-center">
+                  <Checkbox
+                    id={`dietary-${restriction}`}
+                    checked={dietaryRestrictions.includes(restriction)}
+                    onCheckedChange={(checked) => {
+                      if (checked) {
+                        setDietaryRestrictions(prev => [...prev, restriction])
+                      } else {
+                        setDietaryRestrictions(prev => prev.filter(r => r !== restriction))
+                      }
+                    }}
+                  />
+                  <Label htmlFor={`dietary-${restriction}`} className="ml-2">
+                    {restriction.charAt(0).toUpperCase() + restriction.slice(1)}
+                  </Label>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Highlighted user input */}
+          {highlightedInput && (
+            <div className="mb-4 p-4 bg-yellow-100 border border-yellow-300 rounded">
+              <h2 className="font-bold mb-2">User Input:</h2>
+              <p>{highlightedInput}</p>
             </div>
           )}
 
+          {/* Chat messages */}
+          <div className="mb-4 space-y-2">
+            {messages.map((message, index) => (
+              <div key={index} className={`p-2 rounded ${message.role === 'user' ? 'bg-blue-100 text-right' : 'bg-gray-100'}`}>
+                              <pre className="mt-1 p-4 bg-gray-100 rounded-md whitespace-pre-wrap overflow-x-auto">
+                {message.content}
+              </pre>
+
+              </div>
+            ))}
+          </div>
           {isLoading && <div className="text-center">Loading...</div>}
 
-          {/* Removed the imageUrls section from here */}
+          {/* Chat input */}
+          <form onSubmit={handleSendMessage} className="flex space-x-2">
+            <Input
+              value={inputMessage}
+              onChange={(e) => setInputMessage(e.target.value)}
+              placeholder="Ask about the recipe or request modifications..."
+              className="flex-grow"
+            />
+            <Button type="submit">Send</Button>
+          </form>
         </CardContent>
       </Card>
     </div>

@@ -1,9 +1,7 @@
 "use server"
-import { HfInference } from "@huggingface/inference";
 
 export async function detectIngredientsFromImageApi(formData: FormData): Promise<string[]> {
     const bearerToken = process.env.BEARER_TOKEN;
-    const inference = new HfInference(bearerToken);
 
     const base64Image = formData.get('image');
     const context = formData.get('context');
@@ -16,42 +14,36 @@ export async function detectIngredientsFromImageApi(formData: FormData): Promise
         throw new Error('The context must be a string.');
     }
 
-    // Convert base64 to Blob
-    const byteCharacters = atob(base64Image.split(',')[1]);
-    const byteNumbers = new Array(byteCharacters.length);
-    for (let i = 0; i < byteCharacters.length; i++) {
-        byteNumbers[i] = byteCharacters.charCodeAt(i);
-    }
-    const byteArray = new Uint8Array(byteNumbers);
-    const blob = new Blob([byteArray], {type: 'image/jpeg'});
-
-    const response = await fetch("https://api-inference.huggingface.co/models/meta-llama/Llama-3.2-11B-Vision-Instruct/v1/chat/completions", {
+    const response = await fetch(
+      "https://api-inference.huggingface.co/models/microsoft/Phi-3.5-vision-instruct",
+      {
         method: "POST",
         headers: {
-            "Content-Type": "application/json",
-            "Authorization": `Bearer ${bearerToken}`
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${bearerToken}`,
         },
         body: JSON.stringify({
-            model: "meta-llama/Llama-3.2-11B-Vision-Instruct",
-            messages: [
+          model: "meta-llama/Llama-3.2-11B-Vision-Instruct",
+          messages: [
+            {
+              role: "user",
+              content: [
                 {
-                    role: "user",
-                    content: [
-                        {
-                            type: "text",
-                            text: `Only output the ingredients in the photo, comma separated, write nothing else.`
-                        },
-                        {
-                            type: "image_url",
-                            image_url: {
-                                url: base64Image
-                            }
-                        }
-                    ]
-                }
-            ]
-        })
-    });
+                  type: "text",
+                  text: `Only output the ingredients in the photo, comma separated, write nothing else.`,
+                },
+                {
+                  type: "image_url",
+                  image_url: {
+                    url: base64Image,
+                  },
+                },
+              ],
+            },
+          ],
+        }),
+      }
+    );
 
     if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
@@ -80,4 +72,58 @@ export async function detectIngredientsFromImageApi(formData: FormData): Promise
 
     // Remove any empty strings and duplicates
     return Array.from(new Set(ingredients.filter(Boolean)));
+}
+
+
+export async function generateRecipe(ingredients: string[], messages: any[], options: {
+  cookingMethods: string[],
+  cookingTime: number,
+  cookingDifficulty: string,
+  cuisine: string,
+  dietaryRestrictions: string[]
+}): Promise<string> {
+  const apiKey = process.env.OPENAI_API_KEY;
+  if (!apiKey) {
+    throw new Error('OpenAI API key is not set');
+  }
+
+  const systemMessage = {
+    role: "system",
+    content: "You are a helpful assistant that generates recipes based on given ingredients and preferences."
+  };
+
+  const userMessage = {
+    role: "user",
+    content: `Generate a recipe using these ingredients: ${ingredients.join(', ')}. 
+    Cooking methods: ${options.cookingMethods.join(', ')}. 
+    Cooking time: ${options.cookingTime} minutes. 
+    Difficulty: ${options.cookingDifficulty}. 
+    Cuisine: ${options.cuisine}. 
+    Dietary restrictions: ${options.dietaryRestrictions.join(', ')}. 
+    Be creative and consider the previous conversation context.`
+  };
+
+  const allMessages = [systemMessage, ...messages, userMessage];
+  console.log(allMessages);
+
+  const response = await fetch('https://api.openai.com/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${apiKey}`
+    },
+    body: JSON.stringify({
+      model: "gpt-3.5-turbo",
+      messages: allMessages,
+      temperature: 0.7,
+      max_tokens: 500
+    })
+  });
+
+  if (!response.ok) {
+    throw new Error(`HTTP error! status: ${response.status}`);
+  }
+
+  const data = await response.json();
+  return data.choices[0].message.content.trim();
 }
