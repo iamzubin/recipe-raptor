@@ -14,18 +14,17 @@ export async function detectIngredientsFromImageApi(formData: FormData): Promise
     }
 
     const response = await fetch(
-        "https://llama9587334652.openai.azure.com/openai/deployments/gpt-4o-mini/chat/completions?api-version=2023-03-15-preview",
+        "https://llama9587334652.openai.azure.com/openai/deployments/gpt-4o-mini/chat/completions?api-version=2024-02-15-preview",
         {
             method: "POST",
             headers: {
                 "Content-Type": "application/json",
-                "Authorization": `Bearer ${apiKey}`,
+                "api-key": apiKey,
             },
             body: JSON.stringify({
-                model: "gpt-4o-mini",
                 messages: [
                     {
-                        role: "user",
+                        role: "system",
                         content: [
                             {
                                 type: "text",
@@ -34,19 +33,20 @@ export async function detectIngredientsFromImageApi(formData: FormData): Promise
                             {
                                 type: "image_url",
                                 image_url: {
-                                    url: `${base64Image}`,
+                                    url: `data:image/jpeg;base64,${base64Image}`,
                                 },
                             },
                         ],
                     },
                 ],
+                temperature: 0.7,
+                top_p: 0.95,
                 max_tokens: 300,
             }),
         }
     );
 
     if (!response.ok) {
-        console.log(response);
         throw new Error(`HTTP error! status: ${response.status}`);
     }
 
@@ -166,14 +166,14 @@ export async function generateRecipe(ingredients: string[], messages: any[], opt
   const allMessages = [systemMessage, ...messages, userMessage];
   console.log(allMessages);
 
-  const response = await fetch('https://llama9587334652.openai.azure.com/openai/deployments/gpt-4o-mini/chat/completions?api-version=2023-03-15-preview', {
+  const response = await fetch('https://virtualwin11clovis.tail326aa5.ts.net:10000/api/generate', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'Authorization': `Bearer ${apiKey}`
+      "api-key": apiKey,
     },
     body: JSON.stringify({
-      model: "gpt-4o-mini",
+      model: "llava:latest",
       messages: allMessages,
       temperature: 0.7,
       max_tokens: 500
