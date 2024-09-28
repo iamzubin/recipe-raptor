@@ -1,28 +1,34 @@
-'use client'
+'use client';
 
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Checkbox } from "@/components/ui/checkbox"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Slider } from "@/components/ui/slider"
-import { detectIngredientsFromImageApi, generateRecipe as generateRecipeApi } from "@/lib/service"
-import { PlusIcon, XIcon } from 'lucide-react'
-import Image from 'next/image'
-import { useCallback, useEffect, useState } from 'react'
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Slider } from '@/components/ui/slider';
+import {
+  detectIngredientsFromImageApi,
+  generateRecipe as generateRecipeApi,
+} from '@/lib/service';
+import { PlusIcon, XIcon } from 'lucide-react';
+import Image from 'next/image';
+import { useCallback, useEffect, useState } from 'react';
 
 // Mocking API calls
-const detectIngredientsFromImage = async (image: File, context: string): Promise<string[]> => {
+const detectIngredientsFromImage = async (
+  image: File,
+  context: string
+): Promise<string[]> => {
   // Create a FormData object to hold the image and context
 
   function convertToBase64(file: File): Promise<string> {
     return new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onloadend = () => {
-            resolve(reader.result as string);
-        };
-        reader.onerror = reject;
-        reader.readAsDataURL(file);
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        resolve(reader.result as string);
+      };
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
     });
   }
 
@@ -35,33 +41,35 @@ const detectIngredientsFromImage = async (image: File, context: string): Promise
   const response = await detectIngredientsFromImageApi(formData); // Pass FormData to the API
 
   console.log(response);
-  await new Promise(resolve => setTimeout(resolve, 1000));
+  await new Promise((resolve) => setTimeout(resolve, 1000));
   return response;
-}
+};
 
 export default function RecipeGenerator() {
-  const [images, setImages] = useState<File[]>([])
-  const [ingredients, setIngredients] = useState<string[]>([])
-  const [newIngredient, setNewIngredient] = useState('')
-  const [recipe, setRecipe] = useState('')
-  const [isLoading, setIsLoading] = useState(false)
+  const [images, setImages] = useState<File[]>([]);
+  const [ingredients, setIngredients] = useState<string[]>([]);
+  const [newIngredient, setNewIngredient] = useState('');
+  const [recipe, setRecipe] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
   const [imageUrls, setImageUrls] = useState<string[]>([]);
 
-  const [cookingMethod, setCookingMethod] = useState('stove')
-  const [cookingTime, setCookingTime] = useState(30)
+  const [cookingMethod, setCookingMethod] = useState('stove');
+  const [cookingTime, setCookingTime] = useState(30);
   const [cookingMethods, setCookingMethods] = useState({
     stove: false,
     oven: false,
-    microwave: false
-  })
+    microwave: false,
+  });
 
-  const [cookingDifficulty, setCookingDifficulty] = useState('medium')
-  const [cuisine, setCuisine] = useState('any')
-  const [dietaryRestrictions, setDietaryRestrictions] = useState<string[]>([])
+  const [cookingDifficulty, setCookingDifficulty] = useState('medium');
+  const [cuisine, setCuisine] = useState('any');
+  const [dietaryRestrictions, setDietaryRestrictions] = useState<string[]>([]);
 
-  const [messages, setMessages] = useState<Array<{ role: 'user' | 'assistant', content: string }>>([])
-  const [inputMessage, setInputMessage] = useState('')
-  const [highlightedInput, setHighlightedInput] = useState('')
+  const [messages, setMessages] = useState<
+    Array<{ role: 'user' | 'assistant'; content: string }>
+  >([]);
+  const [inputMessage, setInputMessage] = useState('');
+  const [highlightedInput, setHighlightedInput] = useState('');
 
   useEffect(() => {
     return () => {
@@ -70,78 +78,113 @@ export default function RecipeGenerator() {
   }, [imageUrls]);
 
   const handleImageUpload = useCallback(async (files: File[]) => {
-    setIsLoading(true)
-    setImages(prevImages => [...prevImages, ...files])
-    
-    for (const file of files) {
-      const detectedIngredients = await detectIngredientsFromImage(file, "context")
-      setIngredients(prevIngredients => [...new Set([...prevIngredients, ...detectedIngredients])])
-      
-      const url = URL.createObjectURL(file);
-      setImageUrls(prevUrls => [...prevUrls, url]);
-    }
-    
-    setIsLoading(false)
-  }, [])
+    setIsLoading(true);
+    setImages((prevImages) => [...prevImages, ...files]);
 
-  const handleDrop = useCallback((e: React.DragEvent<HTMLDivElement>) => {
-    e.preventDefault()
-    if (e.dataTransfer.files) {
-      handleImageUpload(Array.from(e.dataTransfer.files))
+    for (const file of files) {
+      const detectedIngredients = await detectIngredientsFromImage(
+        file,
+        'context'
+      );
+      setIngredients((prevIngredients) => [
+        ...new Set([...prevIngredients, ...detectedIngredients]),
+      ]);
+
+      const url = URL.createObjectURL(file);
+      setImageUrls((prevUrls) => [...prevUrls, url]);
     }
-  }, [handleImageUpload])
+
+    setIsLoading(false);
+  }, []);
+
+  const handleDrop = useCallback(
+    (e: React.DragEvent<HTMLDivElement>) => {
+      e.preventDefault();
+      if (e.dataTransfer.files) {
+        handleImageUpload(Array.from(e.dataTransfer.files));
+      }
+    },
+    [handleImageUpload]
+  );
 
   const addIngredient = () => {
     if (newIngredient) {
-      const ingredientsToAdd = newIngredient.split(',').map(i => i.trim()).filter(i => i && !ingredients.includes(i));
-      setIngredients(prevIngredients => [...new Set([...prevIngredients, ...ingredientsToAdd])]);
+      const ingredientsToAdd = newIngredient
+        .split(',')
+        .map((i) => i.trim())
+        .filter((i) => i && !ingredients.includes(i));
+      setIngredients((prevIngredients) => [
+        ...new Set([...prevIngredients, ...ingredientsToAdd]),
+      ]);
       setNewIngredient('');
     }
-  }
+  };
 
   const removeIngredient = (ingredientToRemove: string) => {
-    setIngredients(ingredients.filter(ingredient => ingredient !== ingredientToRemove))
-  }
+    setIngredients(
+      ingredients.filter((ingredient) => ingredient !== ingredientToRemove)
+    );
+  };
 
   const toggleCookingMethod = (method: 'stove' | 'oven' | 'microwave') => {
-    setCookingMethods(prev => ({ ...prev, [method]: !prev[method] }))
-  }
+    setCookingMethods((prev) => ({ ...prev, [method]: !prev[method] }));
+  };
 
   const handleSendMessage = async (e: React.FormEvent) => {
-    e.preventDefault()
-    
+    e.preventDefault();
+
     // Remove the check for empty input
-    setMessages(prevMessages => [...prevMessages, { role: 'user', content: inputMessage }])
-    setInputMessage('')
-    setIsLoading(true)
+    setMessages((prevMessages) => [
+      ...prevMessages,
+      { role: 'user', content: inputMessage },
+    ]);
+    setInputMessage('');
+    setIsLoading(true);
 
     try {
       console.log(ingredients, messages, {
-        cookingMethods: Object.entries(cookingMethods).filter(([_, value]) => value).map(([key]) => key),
+        cookingMethods: Object.entries(cookingMethods)
+          .filter(([_, value]) => value)
+          .map(([key]) => key),
         cookingTime,
         cookingDifficulty,
         cuisine,
-        dietaryRestrictions
-      })
-      const generatedRecipe = await generateRecipeApi(ingredients,  [...messages, { role: 'user', content: inputMessage }], {
-        cookingMethods: Object.entries(cookingMethods).filter(([_, value]) => value).map(([key]) => key),
-        cookingTime,
-        cookingDifficulty,
-        cuisine,
-        dietaryRestrictions
-      })
-      setRecipe(generatedRecipe)
-      setMessages(prevMessages => [...prevMessages, { role: 'assistant', content: generatedRecipe }])
+        dietaryRestrictions,
+      });
+      const generatedRecipe = await generateRecipeApi(
+        ingredients,
+        [...messages, { role: 'user', content: inputMessage }],
+        {
+          cookingMethods: Object.entries(cookingMethods)
+            .filter(([_, value]) => value)
+            .map(([key]) => key),
+          cookingTime,
+          cookingDifficulty,
+          cuisine,
+          dietaryRestrictions,
+        }
+      );
+      setRecipe(generatedRecipe);
+      setMessages((prevMessages) => [
+        ...prevMessages,
+        { role: 'assistant', content: generatedRecipe },
+      ]);
     } catch (error) {
-      console.error('Error generating recipe:', error)
-      setMessages(prevMessages => [...prevMessages, { role: 'assistant', content: 'Sorry, there was an error generating the recipe.' }])
+      console.error('Error generating recipe:', error);
+      setMessages((prevMessages) => [
+        ...prevMessages,
+        {
+          role: 'assistant',
+          content: 'Sorry, there was an error generating the recipe.',
+        },
+      ]);
     } finally {
-      setIsLoading(false)
+      setIsLoading(false);
     }
-  }
+  };
 
   return (
-    <div className="container mx-auto p-4 max-w-2xl z-50">
+    <div className="container min-h-screen mx-auto p-4 max-w-2xl z-50">
       <Card>
         <CardHeader>
           <CardTitle>Recipe Generator</CardTitle>
@@ -152,17 +195,24 @@ export default function RecipeGenerator() {
             onDragOver={(e) => e.preventDefault()}
             className="border-2 border-dashed border-gray-300 rounded-lg p-4 text-center cursor-pointer"
           >
-            <Label htmlFor="image-upload">Upload or Drop Refrigerator Image</Label>
+            <Label htmlFor="image-upload">
+              Upload or Drop Refrigerator Image
+            </Label>
             <div className="mt-1 flex items-center justify-center space-x-4">
               <Input
                 id="image-upload"
                 type="file"
                 accept="image/*"
                 multiple
-                onChange={(e) => e.target.files && handleImageUpload(Array.from(e.target.files))}
+                onChange={(e) =>
+                  e.target.files &&
+                  handleImageUpload(Array.from(e.target.files))
+                }
                 className="hidden"
               />
-              {images.length > 0 && <span className="text-sm text-gray-500">{images[0].name}</span>}
+              {images.length > 0 && (
+                <span className="text-sm text-gray-500">{images[0].name}</span>
+              )}
             </div>
           </div>
 
@@ -189,9 +239,15 @@ export default function RecipeGenerator() {
               <Label>Detected Ingredients</Label>
               <div className="mt-1 flex flex-wrap gap-2">
                 {ingredients.map((ingredient, index) => (
-                  <span key={index} className="bg-primary text-primary-foreground px-2 py-1 rounded-md text-sm flex items-center">
+                  <span
+                    key={index}
+                    className="bg-primary text-primary-foreground px-2 py-1 rounded-md text-sm flex items-center"
+                  >
                     {ingredient}
-                    <button onClick={() => removeIngredient(ingredient)} className="ml-2 text-primary-foreground hover:text-red-500">
+                    <button
+                      onClick={() => removeIngredient(ingredient)}
+                      className="ml-2 text-primary-foreground hover:text-red-500"
+                    >
                       <XIcon className="h-3 w-3" />
                     </button>
                   </span>
@@ -224,8 +280,12 @@ export default function RecipeGenerator() {
                 <div key={method} className="flex items-center">
                   <Checkbox
                     id={`cooking-method-${method}`}
-                    checked={cookingMethods[method as keyof typeof cookingMethods]}
-                    onCheckedChange={() => toggleCookingMethod(method as keyof typeof cookingMethods)}
+                    checked={
+                      cookingMethods[method as keyof typeof cookingMethods]
+                    }
+                    onCheckedChange={() =>
+                      toggleCookingMethod(method as keyof typeof cookingMethods)
+                    }
                   />
                   <Label htmlFor={`cooking-method-${method}`} className="ml-2">
                     {method.charAt(0).toUpperCase() + method.slice(1)}
@@ -283,16 +343,27 @@ export default function RecipeGenerator() {
           <div>
             <Label>Dietary Restrictions</Label>
             <div className="flex flex-wrap gap-2 mt-1">
-              {['vegetarian', 'vegan', 'gluten-free', 'dairy-free', 'nut-free'].map((restriction) => (
+              {[
+                'vegetarian',
+                'vegan',
+                'gluten-free',
+                'dairy-free',
+                'nut-free',
+              ].map((restriction) => (
                 <div key={restriction} className="flex items-center">
                   <Checkbox
                     id={`dietary-${restriction}`}
                     checked={dietaryRestrictions.includes(restriction)}
                     onCheckedChange={(checked) => {
                       if (checked) {
-                        setDietaryRestrictions(prev => [...prev, restriction])
+                        setDietaryRestrictions((prev) => [
+                          ...prev,
+                          restriction,
+                        ]);
                       } else {
-                        setDietaryRestrictions(prev => prev.filter(r => r !== restriction))
+                        setDietaryRestrictions((prev) =>
+                          prev.filter((r) => r !== restriction)
+                        );
                       }
                     }}
                   />
@@ -315,11 +386,17 @@ export default function RecipeGenerator() {
           {/* Chat messages */}
           <div className="mb-4 space-y-2">
             {messages.map((message, index) => (
-              <div key={index} className={`p-2 rounded ${message.role === 'user' ? 'bg-blue-100 text-right' : 'bg-gray-100'}`}>
-                              <pre className="mt-1 p-4 bg-gray-100 rounded-md whitespace-pre-wrap overflow-x-auto">
-                {message.content}
-              </pre>
-
+              <div
+                key={index}
+                className={`p-2 rounded ${
+                  message.role === 'user'
+                    ? 'bg-blue-100 text-right'
+                    : 'bg-gray-100'
+                }`}
+              >
+                <pre className="mt-1 p-4 bg-gray-100 rounded-md whitespace-pre-wrap overflow-x-auto">
+                  {message.content}
+                </pre>
               </div>
             ))}
           </div>
@@ -338,5 +415,5 @@ export default function RecipeGenerator() {
         </CardContent>
       </Card>
     </div>
-  )
+  );
 }
