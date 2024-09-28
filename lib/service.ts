@@ -1,6 +1,66 @@
 "use server"
 
 export async function detectIngredientsFromImageApi(formData: FormData): Promise<string[]> {
+    const apiKey = process.env.OPENAI_API_KEY;
+
+    if (!apiKey) {
+        throw new Error('OpenAI API key is not set');
+    }
+
+    const base64Image = formData.get('image');
+
+    if (typeof base64Image !== 'string') {
+        throw new Error('The image data must be a base64 string.');
+    }
+
+    const response = await fetch(
+        "https://llama9587334652.openai.azure.com/openai/deployments/gpt-4o-mini/chat/completions?api-version=2023-03-15-preview",
+        {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                "Authorization": `Bearer ${apiKey}`,
+            },
+            body: JSON.stringify({
+                model: "gpt-4o-mini",
+                messages: [
+                    {
+                        role: "user",
+                        content: [
+                            {
+                                type: "text",
+                                text: "Only output the ingredients in the photo, comma separated, write nothing else.",
+                            },
+                            {
+                                type: "image_url",
+                                image_url: {
+                                    url: `${base64Image}`,
+                                },
+                            },
+                        ],
+                    },
+                ],
+                max_tokens: 300,
+            }),
+        }
+    );
+
+    if (!response.ok) {
+        console.log(response);
+        throw new Error(`HTTP error! status: ${response.status}`);
+    }
+
+    const data = await response.json();
+    const content = data.choices[0].message.content;
+
+    // Split the content into an array of ingredients
+    const ingredients = content.split(',').map((ingredient: string) => ingredient.trim());
+
+    // Remove any empty strings and duplicates
+    return Array.from(new Set(ingredients.filter(Boolean)));
+}
+
+export async function detectIngredientsFromImageApiOld(formData: FormData): Promise<string[]> {
     const bearerToken = process.env.BEARER_TOKEN;
 
     const base64Image = formData.get('image');
@@ -73,8 +133,6 @@ export async function detectIngredientsFromImageApi(formData: FormData): Promise
     // Remove any empty strings and duplicates
     return Array.from(new Set(ingredients.filter(Boolean)));
 }
-
-
 export async function generateRecipe(ingredients: string[], messages: any[], options: {
   cookingMethods: string[],
   cookingTime: number,
@@ -83,6 +141,8 @@ export async function generateRecipe(ingredients: string[], messages: any[], opt
   dietaryRestrictions: string[]
 }): Promise<string> {
   const apiKey = process.env.OPENAI_API_KEY;
+  console.log(apiKey);
+
   if (!apiKey) {
     throw new Error('OpenAI API key is not set');
   }
@@ -106,14 +166,14 @@ export async function generateRecipe(ingredients: string[], messages: any[], opt
   const allMessages = [systemMessage, ...messages, userMessage];
   console.log(allMessages);
 
-  const response = await fetch('https://api.openai.com/v1/chat/completions', {
+  const response = await fetch('https://llama9587334652.openai.azure.com/openai/deployments/gpt-4o-mini/chat/completions?api-version=2023-03-15-preview', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
       'Authorization': `Bearer ${apiKey}`
     },
     body: JSON.stringify({
-      model: "gpt-3.5-turbo",
+      model: "gpt-4o-mini",
       messages: allMessages,
       temperature: 0.7,
       max_tokens: 500
