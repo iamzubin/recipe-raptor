@@ -141,7 +141,7 @@ export default function RecipeGenerator() {
   }
 
   return (
-    <div className="container mx-auto p-4 max-w-2xl">
+    <div className="container mx-auto p-4 max-w-2xl z-50">
       <Card>
         <CardHeader>
           <CardTitle>Recipe Generator</CardTitle>
